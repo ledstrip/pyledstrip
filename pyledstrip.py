@@ -26,21 +26,21 @@ _transmit_buffer = bytearray(LED_COUNT * 3 + _DATA_OFFSET)
 _sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 
-def set_pixel_rgb(pos: int, r: float, g: float, b: float):
+def set_pixel_rgb(pos, r, g, b):
 	"""Set floating point rgb values at integer position."""
 	global _pixels
 	if 0 <= pos < LED_COUNT:
 		_pixels[pos] = [r, g, b]
 
 
-def add_pixel_rgb(pos: int, r: float, g: float, b: float):
+def add_pixel_rgb(pos, r, g, b):
 	"""Add floating point rgb values at integer position."""
 	global _pixels
 	if 0 <= pos < LED_COUNT:
 		_pixels[pos] = [x + y for x, y in zip(_pixels[pos], [r, g, b])]
 
 
-def set_rgb(pos: float, r: float, g: float, b: float):
+def set_rgb(pos, r, g, b):
 	# split for non-integer position
 	pos_floor = int(pos)
 	pos_ceil = int(pos + 1.0)
@@ -50,7 +50,7 @@ def set_rgb(pos: float, r: float, g: float, b: float):
 	set_pixel_rgb(pos_ceil, r * ceil_factor, g * ceil_factor, b * ceil_factor)
 
 
-def add_rgb(pos: float, r: float, g: float, b: float):
+def add_rgb(pos, r, g, b):
 	# split for non-integer position
 	pos_floor = int(pos)
 	pos_ceil = int(pos + 1.0)
@@ -60,12 +60,12 @@ def add_rgb(pos: float, r: float, g: float, b: float):
 	add_pixel_rgb(pos_ceil, r * ceil_factor, g * ceil_factor, b * ceil_factor)
 
 
-def set_hsv(pos: float, h: float, s: float, v: float):
+def set_hsv(pos, h, s, v):
 	rgb = colorsys.hsv_to_rgb(h, s, v)
 	set_rgb(pos, rgb[0], rgb[1], rgb[2])
 
 
-def add_hsv(pos: float, h: float, s: float, v: float):
+def add_hsv(pos, h, s, v):
 	rgb = colorsys.hsv_to_rgb(h, s, v)
 	add_rgb(pos, rgb[0], rgb[1], rgb[2])
 
