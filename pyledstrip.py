@@ -1,8 +1,11 @@
 #!/usr/bin/env python
+# coding: utf-8
 
-"""This module wraps UDP streaming of color information
+"""
+This module wraps UDP streaming of color information
 to WS2812 LED strips connected to an ESP8266 running the
-firmware from https://github.com/cnlohr/esp8266ws2812i2s"""
+firmware from https://github.com/cnlohr/esp8266ws2812i2s
+"""
 
 import colorsys
 import socket
