@@ -10,18 +10,21 @@ python setup.py install
 
 ## How to use
 ```python
-import pyledstrip
+from pyledstrip import LedStrip
 
-# Set Rainbow
-ledcount = 300
-for i in range(ledcount):
-	pyledstrip.set_hsv(i, i / ledcount, 1.0, 1.0)
+# Setup LED strip
+led_count = 300
+strip = LedStrip(led_count=led_count)
+
+# Set rainbow
+for pos in range(led_count):
+	strip.set_hsv(pos, pos / led_count, 1.0, 1.0)
 
 # Actually transmit the information to the LED strip
-pyledstrip.transmit()
+strip.transmit()
 
 # Turn LED strip off
-pyledstrip.off()
+strip.off()
 ```
 
 ## Examples
