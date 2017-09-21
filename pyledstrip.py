@@ -41,11 +41,12 @@ class LedStrip:
 	def __init__(self, led_count=300, power_limit=0.2, addr=('192.168.4.1', 7777), loop=False):
 		"""
 		:param led_count: amount of LEDs (used for power and loop calculation)
-		:param power_limit: used to limit total power when running the LED strip on a small power source
+		:param power_limit: used to limit power use when running the LED strip on a small power source
 		:param addr: network address used when transmit is called
 		:param loop: allow positions to loop modulo led_count
 		"""
 		self.led_count = led_count
+		self.power_limit = power_limit
 		self.addr = addr
 		self.loop = loop
 
@@ -57,8 +58,6 @@ class LedStrip:
 		assert (self.led_count > 0)
 		assert (power_limit >= 0.0)
 		assert (power_limit <= 1.0)
-
-		self.total_brightness_max = led_count * power_limit
 
 	def set_pixel_rgb(self, pos: int, r: float, g: float, b: float):
 		"""
@@ -141,17 +140,16 @@ class LedStrip:
 
 	def _update_buffer(self):
 		"""
-		Clamp colors to range(0.0, 1.0) and limit total brightness (power) to total_brightness_max.
-		Convert colors to buffer before transmit.
+		Clamp colors to range(0.0, 1.0), limit power use and convert colors to buffer.
 		"""
 
 		# clamp individual colors
 		pixels = [list(map(lambda color: max(0.0, min(color, 1.0)), pixel)) for pixel in self._pixels]
 
-		# limit total brightness
-		total_brightness = sum([sum(pixel) for pixel in pixels])
-		if total_brightness > self.total_brightness_max:
-			brightness_factor = self.total_brightness_max / total_brightness
+		# limit power use
+		power_use = sum([sum(pixel) / 3 for pixel in pixels]) / self.led_count
+		if power_use > self.power_limit:
+			brightness_factor = self.power_limit / power_use
 			pixels = [[color * brightness_factor for color in pixel] for pixel in pixels]
 
 		# update transmit buffer
@@ -166,7 +164,7 @@ class LedStrip:
 
 	def transmit(self, addr=None):
 		"""
-		Limit total brightness, update buffer and transmit to LED strip.
+		Update buffer and transmit to LED strip.
 		:param addr: Transmit data to this address instead of the one specified on init
 		"""
 		if self._dirty:
