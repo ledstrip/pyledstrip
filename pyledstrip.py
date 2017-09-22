@@ -38,11 +38,11 @@ class LedStrip:
 	_G_OFFSET = 0
 	_B_OFFSET = 2
 
-	def __init__(self, led_count=300, power_limit=0.2, addr=('192.168.4.1', 7777), loop=False):
+	def __init__(self, led_count=300, addr=('192.168.4.1', 7777), power_limit=0.2, loop=False):
 		"""
 		:param led_count: amount of LEDs (used for power and loop calculation)
-		:param power_limit: used to limit power use when running the LED strip on a small power source
 		:param addr: network address used when transmit is called
+		:param power_limit: used to limit power use when running the LED strip on a small power source
 		:param loop: allow positions to loop modulo led_count
 		"""
 		self.led_count = led_count
