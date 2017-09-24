@@ -179,7 +179,3 @@ class LedStrip:
 		"""
 		self.clear()
 		self.transmit(addr)
-
-
-if __name__ == '__main__':
-	print('module not intended for execution')
