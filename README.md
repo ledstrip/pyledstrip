@@ -3,7 +3,9 @@ Python interface for streaming color information to a WS2812 LED strip connected
 https://github.com/cnlohr/esp8266ws2812i2s
 
 ## Installation
+Using `git clone`
 ```bash
+git clone https://github.com/cipold/pyledstrip
 cd pyledstrip
 python setup.py install
 ```
@@ -28,4 +30,5 @@ strip.off()
 ```
 
 ## Examples
+More examples how this module is used can be found here:
 https://github.com/cipold/pyledstrip-examples
