@@ -11,21 +11,29 @@ python setup.py install
 ```
 
 ## How to use
+A simple script which sets the strip to rainbow colors.
 ```python
 from pyledstrip import LedStrip
 
 # Setup LED strip
-led_count = 300
-strip = LedStrip(led_count=led_count)
+strip = LedStrip()
 
 # Set rainbow
-for pos in range(led_count):
-	strip.set_hsv(pos, pos / led_count, 1.0, 1.0)
+for pos in range(strip.led_count):
+	strip.set_hsv(pos, pos / strip.led_count, 1.0, 1.0)
 
 # Actually transmit the information to the LED strip
 strip.transmit()
+```
 
-# Turn LED strip off
+This example shows how to turn off all LEDs.
+```python
+from pyledstrip import LedStrip
+
+# Setup LED strip
+strip = LedStrip()
+
+# Clear all LEDs and transmit
 strip.off()
 ```
 
