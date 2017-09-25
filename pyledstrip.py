@@ -57,7 +57,7 @@ class LedStrip:
 	_transmit_buffer = None
 	_dirty = True
 
-	def __init__(self, config=None, led_count=None, ip=None, port=None, power_limit=None, loop=None):
+	def __init__(self, *, config=None, led_count=None, ip=None, port=None, power_limit=None, loop=None):
 		"""
 		:param config: configuration file
 		:param led_count: amount of LEDs (used for power and loop calculation)
@@ -75,7 +75,7 @@ class LedStrip:
 
 		self.set_parameters(config=config, led_count=led_count, ip=ip, port=port, power_limit=power_limit, loop=loop)
 
-	def set_parameters(self, config=None, led_count=None, ip=None, port=None, power_limit=None, loop=False):
+	def set_parameters(self, *, config=None, led_count=None, ip=None, port=None, power_limit=None, loop=False):
 		"""
 		:param config: configuration file
 		:param led_count: amount of LEDs (used for power and loop calculation)
