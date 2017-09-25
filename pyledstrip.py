@@ -8,6 +8,7 @@ firmware from https://github.com/cnlohr/esp8266ws2812i2s
 """
 
 import colorsys
+import pprint
 import socket
 
 
@@ -93,6 +94,15 @@ class LedStrip:
 
 		if loop is not None:
 			self.loop = loop
+
+	def __str__(self):
+		return pprint.pformat({
+			'LED Count': self.led_count,
+			'IP': self.ip,
+			'Port': self.port,
+			'Power Limit': self.power_limit,
+			'Loop': self.loop,
+		})
 
 	def set_pixel_rgb(self, pos: int, red: float, green: float, blue: float):
 		"""
