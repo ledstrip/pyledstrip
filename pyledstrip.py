@@ -45,76 +45,76 @@ class LedStrip:
 		assert (power_limit >= 0.0)
 		assert (power_limit <= 1.0)
 
-	def set_pixel_rgb(self, pos: int, r: float, g: float, b: float):
+	def set_pixel_rgb(self, pos: int, red: float, green: float, blue: float):
 		"""
 		Set floating point rgb values at integer position.
 		:param pos: integer led position
-		:param r: red value in range(0.0, 1.0)
-		:param g: green value in range(0.0, 1.0)
-		:param b: blue value in range(0.0, 1.0)
+		:param red: red value in range(0.0, 1.0)
+		:param green: green value in range(0.0, 1.0)
+		:param blue: blue value in range(0.0, 1.0)
 		"""
 		if self.loop:
 			pos %= self.led_count
 
 		if 0 <= pos < self.led_count:
-			self._pixels[pos] = [r, g, b]
+			self._pixels[pos] = [red, green, blue]
 			self._dirty = True
 
-	def add_pixel_rgb(self, pos: int, r: float, g: float, b: float):
+	def add_pixel_rgb(self, pos: int, red: float, green: float, blue: float):
 		"""
 		Add floating point rgb values at integer position.
 		:param pos: integer led position
-		:param r: red value in range(0.0, 1.0)
-		:param g: green value in range(0.0, 1.0)
-		:param b: blue value in range(0.0, 1.0)
+		:param red: red value in range(0.0, 1.0)
+		:param green: green value in range(0.0, 1.0)
+		:param blue: blue value in range(0.0, 1.0)
 		"""
 		if self.loop:
 			pos %= self.led_count
 
 		if 0 <= pos < self.led_count:
-			self._pixels[pos] = list(map(lambda a, b: a + b, self._pixels[pos], [r, g, b]))
+			self._pixels[pos] = list(map(lambda a, b: a + b, self._pixels[pos], [red, green, blue]))
 			self._dirty = True
 
-	def set_rgb(self, pos: float, r: float, g: float, b: float):
+	def set_rgb(self, pos: float, red: float, green: float, blue: float):
 		"""
 		Set floating point rgb values at floating point position (interpolated automatically).
 		:param pos: floating point led position
-		:param r: red value in range(0.0, 1.0)
-		:param g: green value in range(0.0, 1.0)
-		:param b: blue value in range(0.0, 1.0)
+		:param red: red value in range(0.0, 1.0)
+		:param green: green value in range(0.0, 1.0)
+		:param blue: blue value in range(0.0, 1.0)
 		"""
-		self._call_interpolated(self.set_pixel_rgb, pos, r, g, b)
+		self._call_interpolated(self.set_pixel_rgb, pos, red, green, blue)
 
-	def add_rgb(self, pos: float, r: float, g: float, b: float):
+	def add_rgb(self, pos: float, red: float, green: float, blue: float):
 		"""
 		Add floating point rgb values at floating point position (interpolated automatically).
 		:param pos: floating point led position
-		:param r: red value in range(0.0, 1.0)
-		:param g: green value in range(0.0, 1.0)
-		:param b: blue value in range(0.0, 1.0)
+		:param red: red value in range(0.0, 1.0)
+		:param green: green value in range(0.0, 1.0)
+		:param blue: blue value in range(0.0, 1.0)
 		"""
-		self._call_interpolated(self.add_pixel_rgb, pos, r, g, b)
+		self._call_interpolated(self.add_pixel_rgb, pos, red, green, blue)
 
-	def set_hsv(self, pos: float, h: float, s: float, v: float):
+	def set_hsv(self, pos: float, hue: float, saturation: float, value: float):
 		"""
 		Set floating point hsv values at floating point position (interpolated automatically).
 		:param pos: floating point led position
-		:param h: hue value in range(0.0, 1.0)
-		:param s: saturation value in range(0.0, 1.0)
-		:param v: value value in range(0.0, 1.0)
+		:param hue: hue value in range(0.0, 1.0)
+		:param saturation: saturation value in range(0.0, 1.0)
+		:param value: brightness value in range(0.0, 1.0)
 		"""
-		rgb = colorsys.hsv_to_rgb(h, s, v)
+		rgb = colorsys.hsv_to_rgb(hue, saturation, value)
 		self.set_rgb(pos, rgb[0], rgb[1], rgb[2])
 
-	def add_hsv(self, pos: float, h: float, s: float, v: float):
+	def add_hsv(self, pos: float, hue: float, saturation: float, value: float):
 		"""
 		Add floating point hsv values at floating point position (interpolated automatically).
 		:param pos: floating point led position
-		:param h: hue value in range(0.0, 1.0)
-		:param s: saturation value in range(0.0, 1.0)
-		:param v: value value in range(0.0, 1.0)
+		:param hue: hue value in range(0.0, 1.0)
+		:param saturation: saturation value in range(0.0, 1.0)
+		:param value: brightness value in range(0.0, 1.0)
 		"""
-		rgb = colorsys.hsv_to_rgb(h, s, v)
+		rgb = colorsys.hsv_to_rgb(hue, saturation, value)
 		self.add_rgb(pos, rgb[0], rgb[1], rgb[2])
 
 	def clear(self):
@@ -175,18 +175,18 @@ class LedStrip:
 		self.transmit(ip, port)
 
 	@staticmethod
-	def _call_interpolated(pixel_func, pos: float, r: float, g: float, b: float):
+	def _call_interpolated(pixel_func, pos: float, red: float, green: float, blue: float):
 		"""
 		Helper function distributing a color manipulation between two pixels based on interpolation.
 		:param pixel_func: function manipulating a single pixel
 		:param pos: floating point led position
-		:param r: red value in range(0.0, 1.0)
-		:param g: green value in range(0.0, 1.0)
-		:param b: blue value in range(0.0, 1.0)
+		:param red: red value in range(0.0, 1.0)
+		:param green: green value in range(0.0, 1.0)
+		:param blue: blue value in range(0.0, 1.0)
 		"""
 		pos_floor = int(pos)
 		pos_ceil = int(pos + 1.0)
 		floor_factor = 1.0 - (pos - pos_floor)
 		ceil_factor = 1.0 - (pos_ceil - pos)
-		pixel_func(pos_floor, r * floor_factor, g * floor_factor, b * floor_factor)
-		pixel_func(pos_ceil, r * ceil_factor, g * ceil_factor, b * ceil_factor)
+		pixel_func(pos_floor, red * floor_factor, green * floor_factor, blue * floor_factor)
+		pixel_func(pos_ceil, red * ceil_factor, green * ceil_factor, blue * ceil_factor)
