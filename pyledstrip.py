@@ -8,6 +8,7 @@ firmware from https://github.com/cnlohr/esp8266ws2812i2s
 """
 
 import colorsys
+import configparser
 import pprint
 import socket
 
@@ -56,8 +57,9 @@ class LedStrip:
 	_transmit_buffer = None
 	_dirty = True
 
-	def __init__(self, led_count=None, ip=None, port=None, power_limit=None, loop=None):
+	def __init__(self, config=None, led_count=None, ip=None, port=None, power_limit=None, loop=None):
 		"""
+		:param config: configuration file
 		:param led_count: amount of LEDs (used for power and loop calculation)
 		:param ip: IP address used when transmit is called
 		:param port: UDP port used when transmit is called
@@ -71,15 +73,20 @@ class LedStrip:
 		self.ip = '192.168.4.1'
 		self.port = 7777
 
-		self.set_parameters(led_count=led_count, ip=ip, port=port, power_limit=power_limit, loop=loop)
-	def set_parameters(self, led_count=None, ip=None, port=None, power_limit=None, loop=False):
+		self.set_parameters(config=config, led_count=led_count, ip=ip, port=port, power_limit=power_limit, loop=loop)
+
+	def set_parameters(self, config=None, led_count=None, ip=None, port=None, power_limit=None, loop=False):
 		"""
+		:param config: configuration file
 		:param led_count: amount of LEDs (used for power and loop calculation)
 		:param ip: IP address used when transmit is called
 		:param port: UDP port used when transmit is called
 		:param power_limit: used to limit power use when running the LED strip on a small power source
 		:param loop: loop positions modulo led_count
 		"""
+		if config is not None:
+			self.read_config(config)
+
 		if led_count is not None:
 			self.led_count = led_count
 
@@ -94,6 +101,37 @@ class LedStrip:
 
 		if loop is not None:
 			self.loop = loop
+
+	def read_config(self, config):
+		"""
+		:param config: configuration file
+		"""
+		if isinstance(config, str):
+			# Assume config file name was passed
+			config_file = config
+			config = configparser.ConfigParser()
+			config.read(config_file)
+
+		if 'pyledstrip' not in config:
+			print('Section "pyledstrip" not found in config')
+			return
+
+		section = config['pyledstrip']
+
+		if 'led_count' in section:
+			self.led_count = section.getint('led_count')
+
+		if 'ip' in section:
+			self.ip = section.get('ip')
+
+		if 'port' in section:
+			self.port = section.getint('port')
+
+		if 'power_limit' in section:
+			self.power_limit = section.getfloat('power_limit')
+
+		if 'loop' in section:
+			self.loop = section.getboolean('loop')
 
 	def __str__(self):
 		return pprint.pformat({
