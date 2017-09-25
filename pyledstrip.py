@@ -57,7 +57,7 @@ class LedStrip:
 	_transmit_buffer = None
 	_dirty = True
 
-	def __init__(self, *, config=None, led_count=None, ip=None, port=None, power_limit=None, loop=None):
+	def __init__(self, *, config=None, led_count=None, ip=None, port=None, power_limit=None, loop=None, args=None):
 		"""
 		:param config: configuration file
 		:param led_count: amount of LEDs (used for power and loop calculation)
@@ -65,6 +65,7 @@ class LedStrip:
 		:param port: UDP port used when transmit is called
 		:param power_limit: limit power use running the LED strip on a small power source
 		:param loop: loop positions modulo led_count
+		:param args: argparse arguments
 		"""
 
 		# Defaults
@@ -73,9 +74,12 @@ class LedStrip:
 		self.ip = '192.168.4.1'
 		self.port = 7777
 
-		self.set_parameters(config=config, led_count=led_count, ip=ip, port=port, power_limit=power_limit, loop=loop)
+		self.set_parameters(
+			config=config, led_count=led_count, ip=ip, port=port, power_limit=power_limit, loop=loop, args=args
+		)
 
-	def set_parameters(self, *, config=None, led_count=None, ip=None, port=None, power_limit=None, loop=False):
+	def set_parameters(
+			self, *, config=None, led_count=None, ip=None, port=None, power_limit=None, loop=False, args=None):
 		"""
 		:param config: configuration file
 		:param led_count: amount of LEDs (used for power and loop calculation)
@@ -83,9 +87,16 @@ class LedStrip:
 		:param port: UDP port used when transmit is called
 		:param power_limit: used to limit power use when running the LED strip on a small power source
 		:param loop: loop positions modulo led_count
+		:param args: argparse arguments
 		"""
+		if args is not None and args.config is not None:
+			self.read_config(args.config)
+
 		if config is not None:
 			self.read_config(config)
+
+		if args is not None:
+			self.read_args(args)
 
 		if led_count is not None:
 			self.led_count = led_count
@@ -132,6 +143,25 @@ class LedStrip:
 
 		if 'loop' in section:
 			self.loop = section.getboolean('loop')
+
+	def read_args(self, args):
+		"""
+		:param args: argparse arguments
+		"""
+		if args.led_count is not None:
+			self.led_count = args.led_count
+
+		if args.ip is not None:
+			self.ip = args.ip
+
+		if args.port is not None:
+			self.port = args.port
+
+		if args.power_limit is not None:
+			self.power_limit = args.power_limit
+
+		if args.loop is not None:
+			self.loop = args.loop
 
 	def __str__(self):
 		return pprint.pformat({
@@ -287,3 +317,13 @@ class LedStrip:
 		ceil_factor = 1.0 - (pos_ceil - pos)
 		pixel_func(pos_floor, red * floor_factor, green * floor_factor, blue * floor_factor)
 		pixel_func(pos_ceil, red * ceil_factor, green * ceil_factor, blue * ceil_factor)
+
+	@staticmethod
+	def add_arguments(parser):
+		group = parser.add_argument_group(title='pyledstrip')
+		group.add_argument('--config', type=str, help='configuration file')
+		group.add_argument('--led_count', type=int, help='amount of LEDs')
+		group.add_argument('--ip', type=str, help='IP address')
+		group.add_argument('--port', type=int, help='UDP port')
+		group.add_argument('--power_limit', type=float, help='limit power use')
+		group.add_argument('--loop', type=bool, help='loop positions modulo led_count')
