@@ -11,23 +11,6 @@ import colorsys
 import socket
 
 
-def _call_interpolated(pixel_func, pos: float, r: float, g: float, b: float):
-	"""
-	Helper function distributing a color manipulation between two pixels based on interpolation.
-	:param pixel_func: function manipulating a single pixel
-	:param pos: floating point led position
-	:param r: red value in range(0.0, 1.0)
-	:param g: green value in range(0.0, 1.0)
-	:param b: blue value in range(0.0, 1.0)
-	"""
-	pos_floor = int(pos)
-	pos_ceil = int(pos + 1.0)
-	floor_factor = 1.0 - (pos - pos_floor)
-	ceil_factor = 1.0 - (pos_ceil - pos)
-	pixel_func(pos_floor, r * floor_factor, g * floor_factor, b * floor_factor)
-	pixel_func(pos_ceil, r * ceil_factor, g * ceil_factor, b * ceil_factor)
-
-
 class LedStrip:
 	"""
 	Class managing led strip state information (e.g. connection information, color information before transmit)
@@ -99,7 +82,7 @@ class LedStrip:
 		:param g: green value in range(0.0, 1.0)
 		:param b: blue value in range(0.0, 1.0)
 		"""
-		_call_interpolated(self.set_pixel_rgb, pos, r, g, b)
+		self._call_interpolated(self.set_pixel_rgb, pos, r, g, b)
 
 	def add_rgb(self, pos: float, r: float, g: float, b: float):
 		"""
@@ -109,7 +92,7 @@ class LedStrip:
 		:param g: green value in range(0.0, 1.0)
 		:param b: blue value in range(0.0, 1.0)
 		"""
-		_call_interpolated(self.add_pixel_rgb, pos, r, g, b)
+		self._call_interpolated(self.add_pixel_rgb, pos, r, g, b)
 
 	def set_hsv(self, pos: float, h: float, s: float, v: float):
 		"""
@@ -189,3 +172,20 @@ class LedStrip:
 		"""
 		self.clear()
 		self.transmit(ip, port)
+
+	@staticmethod
+	def _call_interpolated(pixel_func, pos: float, r: float, g: float, b: float):
+		"""
+		Helper function distributing a color manipulation between two pixels based on interpolation.
+		:param pixel_func: function manipulating a single pixel
+		:param pos: floating point led position
+		:param r: red value in range(0.0, 1.0)
+		:param g: green value in range(0.0, 1.0)
+		:param b: blue value in range(0.0, 1.0)
+		"""
+		pos_floor = int(pos)
+		pos_ceil = int(pos + 1.0)
+		floor_factor = 1.0 - (pos - pos_floor)
+		ceil_factor = 1.0 - (pos_ceil - pos)
+		pixel_func(pos_floor, r * floor_factor, g * floor_factor, b * floor_factor)
+		pixel_func(pos_ceil, r * ceil_factor, g * ceil_factor, b * ceil_factor)
