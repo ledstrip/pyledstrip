@@ -38,16 +38,18 @@ class LedStrip:
 	_G_OFFSET = 0
 	_B_OFFSET = 2
 
-	def __init__(self, led_count=300, addr=('192.168.4.1', 7777), power_limit=0.2, loop=False):
+	def __init__(self, led_count=300, ip='192.168.4.1', port=7777, power_limit=0.2, loop=False):
 		"""
 		:param led_count: amount of LEDs (used for power and loop calculation)
-		:param addr: network address used when transmit is called
+		:param ip: IP address used when transmit is called
+		:param port: UDP port used when transmit is called
 		:param power_limit: used to limit power use when running the LED strip on a small power source
 		:param loop: allow positions to loop modulo led_count
 		"""
 		self.led_count = led_count
 		self.power_limit = power_limit
-		self.addr = addr
+		self.ip = ip
+		self.port = port
 		self.loop = loop
 
 		self._pixels = [[0.0, 0.0, 0.0]] * led_count
@@ -162,20 +164,28 @@ class LedStrip:
 
 		self._dirty = False
 
-	def transmit(self, addr=None):
+	def transmit(self, ip=None, port=None):
 		"""
 		Update buffer and transmit to LED strip.
-		:param addr: Transmit data to this address instead of the one specified on init
+		:param ip: Transmit data to this IP address instead of the one specified on init
+		:param port: Transmit data to this UDP port instead of the one specified on init
 		"""
 		if self._dirty:
 			self._update_buffer()
 
-		self._sock.sendto(self._transmit_buffer, addr if addr is not None else self.addr)
+		self._sock.sendto(
+			self._transmit_buffer,
+			(
+				self.ip if ip is None else ip,
+				self.port if port is None else port
+			)
+		)
 
-	def off(self, addr=None):
+	def off(self, ip=None, port=None):
 		"""
 		Quickly turn off LED strip (clear and transmit).
-		:param addr: Transmit data to this address instead of the one specified on init
+		:param ip: Transmit data to this IP address instead of the one specified on init
+		:param port: Transmit data to this UDP port instead of the one specified on init
 		"""
 		self.clear()
-		self.transmit(addr)
+		self.transmit(ip, port)
