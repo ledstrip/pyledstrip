@@ -16,10 +16,11 @@ class LedStrip:
 	Class managing led strip state information (e.g. connection information, color information before transmit)
 	"""
 
-	_DATA_OFFSET = 3
-	_R_OFFSET = 1
-	_G_OFFSET = 0
-	_B_OFFSET = 2
+	# Public constants
+	DATA_OFFSET = 3
+	RED_OFFSET = 1
+	GREEN_OFFSET = 0
+	BLUE_OFFSET = 2
 
 	def __init__(self, led_count=300, ip='192.168.4.1', port=7777, power_limit=0.2, loop=False):
 		"""
@@ -36,7 +37,7 @@ class LedStrip:
 		self.loop = loop
 
 		self._pixels = [[0.0, 0.0, 0.0]] * led_count
-		self._transmit_buffer = bytearray(led_count * 3 + self._DATA_OFFSET)
+		self._transmit_buffer = bytearray(led_count * 3 + self.DATA_OFFSET)
 		self._dirty = True
 		self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -139,11 +140,11 @@ class LedStrip:
 
 		# update transmit buffer
 		for pos in range(self.led_count):
-			pos_offset = pos * 3 + self._DATA_OFFSET
+			pos_offset = pos * 3 + self.DATA_OFFSET
 			pixel = pixels[pos]
-			self._transmit_buffer[pos_offset + self._R_OFFSET] = max(0, min(int(pixel[0] * 255), 255))
-			self._transmit_buffer[pos_offset + self._G_OFFSET] = max(0, min(int(pixel[1] * 255), 255))
-			self._transmit_buffer[pos_offset + self._B_OFFSET] = max(0, min(int(pixel[2] * 255), 255))
+			self._transmit_buffer[pos_offset + self.RED_OFFSET] = max(0, min(int(pixel[0] * 255), 255))
+			self._transmit_buffer[pos_offset + self.GREEN_OFFSET] = max(0, min(int(pixel[1] * 255), 255))
+			self._transmit_buffer[pos_offset + self.BLUE_OFFSET] = max(0, min(int(pixel[2] * 255), 255))
 
 		self._dirty = False
 
