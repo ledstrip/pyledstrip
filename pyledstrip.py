@@ -22,28 +22,77 @@ class LedStrip:
 	GREEN_OFFSET = 0
 	BLUE_OFFSET = 2
 
-	def __init__(self, led_count=300, ip='192.168.4.1', port=7777, power_limit=0.2, loop=False):
+	# Public variables
+	def set_led_count(self, led_count):
+		assert (led_count > 0)
+		if led_count != self._led_count:
+			self._led_count = led_count
+			self._pixels = [[0.0, 0.0, 0.0]] * self._led_count
+			self._transmit_buffer = bytearray(self._led_count * 3 + self.DATA_OFFSET)
+			self._dirty = True
+
+	def set_power_limit(self, power_limit):
+		assert (power_limit >= 0.0)
+		assert (power_limit <= 1.0)
+		self._power_limit = power_limit
+		self._dirty = True
+
+	led_count = property(
+		fget=lambda self: self._led_count, fset=set_led_count, doc="Amount of LEDs"
+	)
+	ip = None
+	port = None
+	power_limit = property(
+		fget=lambda self: self._power_limit, fset=set_power_limit, doc="Limit total power used by LED strip"
+	)
+	loop = False
+
+	# Private variables
+	_led_count = 0
+	_power_limit = 0.0
+	_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+	_pixels = None
+	_transmit_buffer = None
+	_dirty = True
+
+	def __init__(self, led_count=None, ip=None, port=None, power_limit=None, loop=None):
+		"""
+		:param led_count: amount of LEDs (used for power and loop calculation)
+		:param ip: IP address used when transmit is called
+		:param port: UDP port used when transmit is called
+		:param power_limit: limit power use running the LED strip on a small power source
+		:param loop: loop positions modulo led_count
+		"""
+
+		# Defaults
+		self.led_count = 300
+		self.power_limit = 1.0
+		self.ip = '192.168.4.1'
+		self.port = 7777
+
+		self.set_parameters(led_count=led_count, ip=ip, port=port, power_limit=power_limit, loop=loop)
+	def set_parameters(self, led_count=None, ip=None, port=None, power_limit=None, loop=False):
 		"""
 		:param led_count: amount of LEDs (used for power and loop calculation)
 		:param ip: IP address used when transmit is called
 		:param port: UDP port used when transmit is called
 		:param power_limit: used to limit power use when running the LED strip on a small power source
-		:param loop: allow positions to loop modulo led_count
+		:param loop: loop positions modulo led_count
 		"""
-		self.led_count = led_count
-		self.power_limit = power_limit
-		self.ip = ip
-		self.port = port
-		self.loop = loop
+		if led_count is not None:
+			self.led_count = led_count
 
-		self._pixels = [[0.0, 0.0, 0.0]] * led_count
-		self._transmit_buffer = bytearray(led_count * 3 + self.DATA_OFFSET)
-		self._dirty = True
-		self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		if ip is not None:
+			self.ip = ip
 
-		assert (self.led_count > 0)
-		assert (power_limit >= 0.0)
-		assert (power_limit <= 1.0)
+		if port is not None:
+			self.port = port
+
+		if power_limit is not None:
+			self.power_limit = power_limit
+
+		if loop is not None:
+			self.loop = loop
 
 	def set_pixel_rgb(self, pos: int, red: float, green: float, blue: float):
 		"""
