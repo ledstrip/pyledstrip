@@ -7,6 +7,12 @@ to WS2812 LED strips connected to an ESP8266 running the
 firmware from https://github.com/cnlohr/esp8266ws2812i2s
 """
 
+__all__ = ['LedStrip']
+__version__ = '2.1'
+__author__ = 'Michael Cipold'
+__email__ = 'github@cipold.de'
+__license__ = 'MPL-2.0'
+
 import colorsys
 import configparser
 import pprint
