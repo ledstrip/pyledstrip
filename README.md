@@ -5,7 +5,7 @@ https://github.com/cnlohr/esp8266ws2812i2s
 ## Installation
 Using `git clone`
 ```bash
-git clone https://github.com/cipold/pyledstrip
+git clone https://github.com/cipold/pyledstrip.git
 cd pyledstrip
 python setup.py install
 ```
