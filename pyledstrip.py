@@ -76,7 +76,7 @@ class LedStrip:
 
 		# Defaults
 		self.led_count = 300
-		self.power_limit = 1.0
+		self.power_limit = 0.2
 		self.ip = '192.168.4.1'
 		self.port = 7777
 
