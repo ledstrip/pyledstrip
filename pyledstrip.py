@@ -32,12 +32,23 @@ class LedStrip:
 
 	# Public variables
 	def set_led_count(self, led_count):
-		assert (led_count > 0)
-		if led_count != self._led_count:
-			self._led_count = led_count
-			self._pixels = [[0.0, 0.0, 0.0]] * self._led_count
-			self._transmit_buffer = bytearray(self._led_count * 3 + self.DATA_OFFSET)
-			self._dirty = True
+		def set_internal_led_count(c):
+			assert (c > 0)
+			if c != self._led_count:
+				self._led_count = c
+				self._pixels = [[0.0, 0.0, 0.0]] * self._led_count
+				self._dirty = True
+
+		if isinstance(led_count, list):
+			set_internal_led_count(sum(led_count))
+			self._led_counts = led_count
+			self._transmit_buffers = [bytearray(c * 3 + self.DATA_OFFSET) for c in led_count]
+		elif isinstance(led_count, int):
+			set_internal_led_count(led_count)
+			self._led_counts = [led_count]
+			self._transmit_buffers = [bytearray(self._led_count * 3 + self.DATA_OFFSET)]
+		else:
+			raise ValueError('unexpected led_count type')
 
 	def set_power_limit(self, power_limit):
 		assert (power_limit >= 0.0)
@@ -57,18 +68,20 @@ class LedStrip:
 
 	# Private variables
 	_led_count = 0
+	_led_counts = 0
 	_power_limit = 0.0
 	_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	_pixels = None
-	_transmit_buffer = None
+	_transmit_buffers = None
 	_dirty = True
 
-	def __init__(self, *, config=None, led_count=None, ip=None, port=None, power_limit=None, loop=None, args=None):
+	def __init__(self, *, config=None, led_count=None, ip=None, port=None, flip=None, power_limit=None, loop=None, args=None):
 		"""
 		:param config: configuration file
 		:param led_count: amount of LEDs (used for power and loop calculation)
 		:param ip: IP address used when transmit is called
 		:param port: UDP port used when transmit is called
+		:param flip: Flip LED positions, use led_count - pos - 1 as position
 		:param power_limit: limit power use running the LED strip on a small power source
 		:param loop: loop positions modulo led_count
 		:param args: argparse arguments
@@ -79,18 +92,20 @@ class LedStrip:
 		self.power_limit = 0.2
 		self.ip = '192.168.4.1'
 		self.port = 7777
+		self.flip = False
 
 		self.set_parameters(
-			config=config, led_count=led_count, ip=ip, port=port, power_limit=power_limit, loop=loop, args=args
+			config=config, led_count=led_count, ip=ip, port=port, flip=flip, power_limit=power_limit, loop=loop, args=args
 		)
 
 	def set_parameters(
-			self, *, config=None, led_count=None, ip=None, port=None, power_limit=None, loop=False, args=None):
+			self, *, config=None, led_count=None, ip=None, port=None, flip=None, power_limit=None, loop=False, args=None):
 		"""
 		:param config: configuration file
 		:param led_count: amount of LEDs (used for power and loop calculation)
 		:param ip: IP address used when transmit is called
 		:param port: UDP port used when transmit is called
+		:param flip: Flip LED positions, use led_count - pos - 1 as position
 		:param power_limit: used to limit power use when running the LED strip on a small power source
 		:param loop: loop positions modulo led_count
 		:param args: argparse arguments
@@ -112,6 +127,9 @@ class LedStrip:
 
 		if port is not None:
 			self.port = port
+
+		if flip is not None:
+			self.flip = flip
 
 		if power_limit is not None:
 			self.power_limit = power_limit
@@ -163,6 +181,9 @@ class LedStrip:
 		if args.port is not None:
 			self.port = args.port
 
+		if args.flip is not None:
+			self.flip = args.flip
+
 		if args.power_limit is not None:
 			self.power_limit = args.power_limit
 
@@ -174,6 +195,7 @@ class LedStrip:
 			'LED Count': self.led_count,
 			'IP': self.ip,
 			'Port': self.port,
+			'Flip': self.flip,
 			'Power Limit': self.power_limit,
 			'Loop': self.loop,
 		})
@@ -257,7 +279,7 @@ class LedStrip:
 		for pos in range(0, self.led_count):
 			self.set_pixel_rgb(pos, 0, 0, 0)
 
-	def _update_buffer(self):
+	def _update_buffers(self):
 		"""
 		Clamp colors to range(0.0, 1.0), limit power use and convert colors to buffer.
 		"""
@@ -271,13 +293,24 @@ class LedStrip:
 			brightness_factor = self.power_limit / power_use
 			pixels = [[color * brightness_factor for color in pixel] for pixel in pixels]
 
+		if not isinstance(self.flip, list):
+			self.flip = [self.flip]
+
+		led_index = []
+		led_positions = []
+
+		for i, c in enumerate(self._led_counts):
+			led_index += [i] * c
+			led_positions.extend(list(range(c)[::-1] if self.flip[min(i, len(self.flip) - 1)] else range(c)))
+
 		# update transmit buffer
 		for pos in range(self.led_count):
-			pos_offset = pos * 3 + self.DATA_OFFSET
+			pos_offset = led_positions[pos] * 3 + self.DATA_OFFSET
 			pixel = pixels[pos]
-			self._transmit_buffer[pos_offset + self.RED_OFFSET] = max(0, min(int(pixel[0] * 255), 255))
-			self._transmit_buffer[pos_offset + self.GREEN_OFFSET] = max(0, min(int(pixel[1] * 255), 255))
-			self._transmit_buffer[pos_offset + self.BLUE_OFFSET] = max(0, min(int(pixel[2] * 255), 255))
+			transmit_buffer = self._transmit_buffers[led_index[pos]]
+			transmit_buffer[pos_offset + self.RED_OFFSET] = max(0, min(int(pixel[0] * 255), 255))
+			transmit_buffer[pos_offset + self.GREEN_OFFSET] = max(0, min(int(pixel[1] * 255), 255))
+			transmit_buffer[pos_offset + self.BLUE_OFFSET] = max(0, min(int(pixel[2] * 255), 255))
 
 		self._dirty = False
 
@@ -288,15 +321,24 @@ class LedStrip:
 		:param port: Transmit data to this UDP port instead of the one specified on init
 		"""
 		if self._dirty:
-			self._update_buffer()
+			self._update_buffers()
 
-		self._sock.sendto(
-			self._transmit_buffer,
-			(
-				self.ip if ip is None else ip,
-				self.port if port is None else port
+		local_ips = self.ip if ip is None else ip
+		if not isinstance(local_ips, list):
+			local_ips = [local_ips]
+
+		local_ports = self.port if port is None else port
+		if not isinstance(local_ports, list):
+			local_ports = [local_ports]
+
+		for i, local_ip in enumerate(local_ips):
+			self._sock.sendto(
+				self._transmit_buffers[i],
+				(
+					local_ip,
+					local_ports[min(i, len(local_ports) - 1)]
+				)
 			)
-		)
 
 	def off(self, ip=None, port=None):
 		"""
@@ -328,8 +370,9 @@ class LedStrip:
 	def add_arguments(parser):
 		group = parser.add_argument_group(title='pyledstrip')
 		group.add_argument('--config', type=str, help='configuration file')
-		group.add_argument('--led_count', type=int, help='amount of LEDs')
-		group.add_argument('--ip', type=str, help='IP address')
-		group.add_argument('--port', type=int, help='UDP port')
+		group.add_argument('--led_count', type=int, nargs='+', help='amount of LEDs')
+		group.add_argument('--ip', type=str, nargs='+', help='IP address')
+		group.add_argument('--port', type=int, nargs='+', help='UDP port')
+		group.add_argument('--flip', type=bool, nargs='+', help='flip led positions')
 		group.add_argument('--power_limit', type=float, help='limit power use')
 		group.add_argument('--loop', type=bool, help='loop positions modulo led_count')
