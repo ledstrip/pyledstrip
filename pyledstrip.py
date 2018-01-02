@@ -13,6 +13,7 @@ __author__ = 'Michael Cipold'
 __email__ = 'github@cipold.de'
 __license__ = 'MPL-2.0'
 
+import argparse
 import colorsys
 import configparser
 import pprint
@@ -32,50 +33,117 @@ class LedStrip:
 	GREEN_OFFSET = 0
 	BLUE_OFFSET = 2
 
-	# Public variables
-	def set_led_count(self, led_count):
-		def set_internal_led_count(c):
-			assert (c > 0)
-			if c != self._led_count:
-				self._led_count = c
-				self._pixels = [[0.0, 0.0, 0.0]] * self._led_count
-				self._dirty = True
-
-		if isinstance(led_count, list):
-			set_internal_led_count(sum(led_count))
-			self._led_counts = led_count
-			self._transmit_buffers = [bytearray(c * 3 + self.DATA_OFFSET) for c in led_count]
-		elif isinstance(led_count, int):
-			set_internal_led_count(led_count)
-			self._led_counts = [led_count]
-			self._transmit_buffers = [bytearray(self._led_count * 3 + self.DATA_OFFSET)]
+	def _refresh_parameters(self) -> None:
+		"""
+		Build consistent parameter list from possibly ambiguous user inputs
+		"""
+		# Transform all strip parameters for lists
+		if isinstance(self._led_count, int):
+			self._led_counts = [self._led_count]
 		else:
-			raise ValueError('unexpected led_count type')
+			self._led_counts = self._led_count
 
-	def set_power_limit(self, power_limit):
-		assert (power_limit >= 0.0)
-		assert (power_limit <= 1.0)
-		self._power_limit = power_limit
-		self._dirty = True
+		if isinstance(self._ip, str):
+			self._ips = [self._ip]
+		else:
+			self._ips = self._ip
+
+		if isinstance(self._port, int):
+			self._ports = [self._port]
+		else:
+			self._ports = self._port
+
+		if isinstance(self._flip, bool):
+			self._flips = [self._flip]
+		else:
+			self._flips = self._flip
+
+		# A strip is defined by a set of ip and port
+		self._strip_count = max(len(self._ips), len(self._ports))
+
+		# Make all lists equal in length
+		if len(self._ips) < self._strip_count:
+			self._ips = self._ips + [self._ips[0]] * (self._strip_count - len(self._ips))
+
+		if len(self._ports) < self._strip_count:
+			self._ports = self._ports + [self._ports[0]] * (self._strip_count - len(self._ports))
+
+		if len(self._led_counts) > self._strip_count:
+			self._led_counts = self._led_counts[:self._strip_count]
+		elif len(self._led_counts) < self._strip_count:
+			self._led_counts = self._led_counts * self._strip_count
+
+		if len(self._flips) > self._strip_count:
+			self._flips = self._flips[:self._strip_count]
+		elif len(self._flips) < self._strip_count:
+			self._flips = self._flips * self._strip_count
+
+		if self._total_led_count != sum(self._led_counts):
+			self._total_led_count = sum(self._led_counts)
+			self._pixels = [[0.0, 0.0, 0.0]] * self._total_led_count
+
+		self._transmit_buffers = [bytearray(c * 3 + self.DATA_OFFSET) for c in self._led_counts]
+		self._transmit_buffers_dirty = True
+
+		self._strip_index = []
+		self._strip_positions = []
+
+		for i, c in enumerate(self._led_counts):
+			self._strip_index += [i] * c
+			self._strip_positions.extend(list(range(c)[::-1] if self._flips[i] else range(c)))
+
+	# Public variables
+	def _set_led_count(self, led_count: Union[int, List[int]]) -> None:
+		self._led_count = led_count
+		self._refresh_parameters()
 
 	led_count = property(
-		fget=lambda self: self._led_count, fset=set_led_count, doc="Amount of LEDs"
+		fget=lambda self: self._total_led_count,
+		fset=_set_led_count,
+		doc='Amount of LEDs'
 	)
-	ip = None
-	port = None
-	power_limit = property(
-		fget=lambda self: self._power_limit, fset=set_power_limit, doc="Limit total power used by LED strip"
-	)
-	loop = False
 
-	# Private variables
-	_led_count = 0
-	_led_counts = 0
-	_power_limit = 0.0
-	_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-	_pixels = None
-	_transmit_buffers = None
-	_dirty = True
+	def _set_ip(self, ip: Union[str, List[str]]) -> None:
+		self._ip = ip
+		self._refresh_parameters()
+
+	ip = property(
+		fget=lambda self: self._ip,
+		fset=_set_ip,
+		doc='IP address used when transmit is called'
+	)
+
+	def _set_port(self, port: Union[int, List[int]]) -> None:
+		self._port = port
+		self._refresh_parameters()
+
+	port = property(
+		fget=lambda self: self._port,
+		fset=_set_port,
+		doc='UDP port used when transmit is called'
+	)
+
+	def _set_flip(self, flip: Union[bool, List[bool]]) -> None:
+		self._flip = flip
+		self._refresh_parameters()
+
+	flip = property(
+		fget=lambda self: self._flip,
+		fset=_set_flip,
+		doc='Flip LED positions, use led_count - pos - 1 as position'
+	)
+
+	def _set_power_limit(self, power_limit: float) -> None:
+		assert power_limit >= 0.0
+		assert power_limit <= 1.0
+		self._power_limit = power_limit
+		self._transmit_buffers_dirty = True
+
+	power_limit = property(
+		fget=lambda self: self._power_limit,
+		fset=_set_power_limit,
+		doc='Limit total power used by LED strip'
+	)
 
 	def __init__(
 			self,
@@ -100,12 +168,31 @@ class LedStrip:
 		:param args: argparse arguments
 		"""
 
-		# Defaults
-		self.led_count = 300
-		self.power_limit = 0.2
-		self.ip = '192.168.4.1'
-		self.port = 7777
-		self.flip = False
+		# Property variables per strip
+		self._led_count = 300
+		self._ip = '192.168.4.1'
+		self._port = 7777
+		self._flip = False
+
+		# Instance variables
+		self.loop = False
+		self._power_limit = 0.2
+
+		# Misc private variables
+		self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		self._strip_count = None
+		self._total_led_count = None
+		self._led_counts = None
+		self._ips = None
+		self._ports = None
+		self._flips = None
+		self._pixels = None
+		self._transmit_buffers = None
+		self._transmit_buffers_dirty = True
+		self._strip_index = None
+		self._strip_positions = None
+
+		self._refresh_parameters()
 
 		self.set_parameters(
 			config=config,
@@ -242,11 +329,11 @@ class LedStrip:
 		:param blue: blue value in range(0.0, 1.0)
 		"""
 		if self.loop:
-			pos %= self.led_count
+			pos %= self._total_led_count
 
-		if 0 <= pos < self.led_count:
+		if 0 <= pos < self._total_led_count:
 			self._pixels[pos] = [red, green, blue]
-			self._dirty = True
+			self._transmit_buffers_dirty = True
 
 	def add_pixel_rgb(self, pos: int, red: float, green: float, blue: float) -> None:
 		"""
@@ -257,11 +344,11 @@ class LedStrip:
 		:param blue: blue value in range(0.0, 1.0)
 		"""
 		if self.loop:
-			pos %= self.led_count
+			pos %= self._total_led_count
 
-		if 0 <= pos < self.led_count:
+		if 0 <= pos < self._total_led_count:
 			self._pixels[pos] = list(map(lambda a, b: a + b, self._pixels[pos], [red, green, blue]))
-			self._dirty = True
+			self._transmit_buffers_dirty = True
 
 	def set_rgb(self, pos: float, red: float, green: float, blue: float) -> None:
 		"""
@@ -309,7 +396,7 @@ class LedStrip:
 		"""
 		Set all pixels to black. Needs call to transmit() to take effect.
 		"""
-		for pos in range(0, self.led_count):
+		for pos in range(0, self._total_led_count):
 			self.set_pixel_rgb(pos, 0, 0, 0)
 
 	def _update_buffers(self) -> None:
@@ -321,66 +408,38 @@ class LedStrip:
 		pixels = [list(map(lambda color: max(0.0, min(color, 1.0)), pixel)) for pixel in self._pixels]
 
 		# limit power use
-		power_use = sum([sum(pixel) / 3 for pixel in pixels]) / self.led_count
-		if power_use > self.power_limit:
-			brightness_factor = self.power_limit / power_use
+		power_use = sum([sum(pixel) / 3 for pixel in pixels]) / self._total_led_count
+		if power_use > self._power_limit:
+			brightness_factor = self._power_limit / power_use
 			pixels = [[color * brightness_factor for color in pixel] for pixel in pixels]
 
-		if not isinstance(self.flip, list):
-			self.flip = [self.flip]
-
-		led_index = []
-		led_positions = []
-
-		for i, c in enumerate(self._led_counts):
-			led_index += [i] * c
-			led_positions.extend(list(range(c)[::-1] if self.flip[min(i, len(self.flip) - 1)] else range(c)))
-
 		# update transmit buffer
-		for pos in range(self.led_count):
-			pos_offset = led_positions[pos] * 3 + self.DATA_OFFSET
+		for pos in range(self._total_led_count):
+			pos_offset = self._strip_positions[pos] * 3 + self.DATA_OFFSET
 			pixel = pixels[pos]
-			transmit_buffer = self._transmit_buffers[led_index[pos]]
+			transmit_buffer = self._transmit_buffers[self._strip_index[pos]]
 			transmit_buffer[pos_offset + self.RED_OFFSET] = max(0, min(int(pixel[0] * 255), 255))
 			transmit_buffer[pos_offset + self.GREEN_OFFSET] = max(0, min(int(pixel[1] * 255), 255))
 			transmit_buffer[pos_offset + self.BLUE_OFFSET] = max(0, min(int(pixel[2] * 255), 255))
 
-		self._dirty = False
+		self._transmit_buffers_dirty = False
 
-	def transmit(self, ip=None, port=None):
+	def transmit(self) -> None:
 		"""
 		Update buffer and transmit to LED strip.
-		:param ip: Transmit data to this IP address instead of the one specified on init
-		:param port: Transmit data to this UDP port instead of the one specified on init
 		"""
-		if self._dirty:
+		if self._transmit_buffers_dirty:
 			self._update_buffers()
 
-		local_ips = self.ip if ip is None else ip
-		if not isinstance(local_ips, list):
-			local_ips = [local_ips]
+		for i in range(self._strip_count):
+			self._sock.sendto(self._transmit_buffers[i], (self._ips[i], self._ports[i]))
 
-		local_ports = self.port if port is None else port
-		if not isinstance(local_ports, list):
-			local_ports = [local_ports]
-
-		for i, local_ip in enumerate(local_ips):
-			self._sock.sendto(
-				self._transmit_buffers[i],
-				(
-					local_ip,
-					local_ports[min(i, len(local_ports) - 1)]
-				)
-			)
-
-	def off(self, ip=None, port=None):
+	def off(self) -> None:
 		"""
 		Quickly turn off LED strip (clear and transmit).
-		:param ip: Transmit data to this IP address instead of the one specified on init
-		:param port: Transmit data to this UDP port instead of the one specified on init
 		"""
 		self.clear()
-		self.transmit(ip, port)
+		self.transmit()
 
 	@staticmethod
 	def _call_interpolated(
