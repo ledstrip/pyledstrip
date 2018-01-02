@@ -17,6 +17,7 @@ import colorsys
 import configparser
 import pprint
 import socket
+from typing import Union, Callable, List
 
 
 class LedStrip:
@@ -75,7 +76,18 @@ class LedStrip:
 	_transmit_buffers = None
 	_dirty = True
 
-	def __init__(self, *, config=None, led_count=None, ip=None, port=None, flip=None, power_limit=None, loop=None, args=None):
+	def __init__(
+			self,
+			*,
+			config: Union[str, configparser.ConfigParser] = None,
+			led_count: Union[int, List[int]] = None,
+			ip: Union[str, List[str]] = None,
+			port: Union[int, List[int]] = None,
+			flip: Union[bool, List[bool]] = None,
+			power_limit: float = None,
+			loop: bool = None,
+			args=None
+	):
 		"""
 		:param config: configuration file
 		:param led_count: amount of LEDs (used for power and loop calculation)
@@ -95,11 +107,28 @@ class LedStrip:
 		self.flip = False
 
 		self.set_parameters(
-			config=config, led_count=led_count, ip=ip, port=port, flip=flip, power_limit=power_limit, loop=loop, args=args
+			config=config,
+			led_count=led_count,
+			ip=ip,
+			port=port,
+			flip=flip,
+			power_limit=power_limit,
+			loop=loop,
+			args=args
 		)
 
 	def set_parameters(
-			self, *, config=None, led_count=None, ip=None, port=None, flip=None, power_limit=None, loop=False, args=None):
+			self,
+			*,
+			config: Union[str, configparser.ConfigParser] = None,
+			led_count: Union[int, List[int]] = None,
+			ip: Union[str, List[str]] = None,
+			port: Union[int, List[int]] = None,
+			flip: Union[bool, List[bool]] = None,
+			power_limit: float = None,
+			loop: bool = False,
+			args=None
+	) -> None:
 		"""
 		:param config: configuration file
 		:param led_count: amount of LEDs (used for power and loop calculation)
@@ -137,7 +166,7 @@ class LedStrip:
 		if loop is not None:
 			self.loop = loop
 
-	def read_config(self, config):
+	def read_config(self, config: Union[str, configparser.ConfigParser]) -> None:
 		"""
 		:param config: configuration file
 		"""
@@ -168,7 +197,7 @@ class LedStrip:
 		if 'loop' in section:
 			self.loop = section.getboolean('loop')
 
-	def read_args(self, args):
+	def read_args(self, args) -> None:
 		"""
 		:param args: argparse arguments
 		"""
@@ -200,7 +229,7 @@ class LedStrip:
 			'Loop': self.loop,
 		})
 
-	def set_pixel_rgb(self, pos: int, red: float, green: float, blue: float):
+	def set_pixel_rgb(self, pos: int, red: float, green: float, blue: float) -> None:
 		"""
 		Set floating point rgb values at integer position.
 		:param pos: integer led position
@@ -215,7 +244,7 @@ class LedStrip:
 			self._pixels[pos] = [red, green, blue]
 			self._dirty = True
 
-	def add_pixel_rgb(self, pos: int, red: float, green: float, blue: float):
+	def add_pixel_rgb(self, pos: int, red: float, green: float, blue: float) -> None:
 		"""
 		Add floating point rgb values at integer position.
 		:param pos: integer led position
@@ -230,7 +259,7 @@ class LedStrip:
 			self._pixels[pos] = list(map(lambda a, b: a + b, self._pixels[pos], [red, green, blue]))
 			self._dirty = True
 
-	def set_rgb(self, pos: float, red: float, green: float, blue: float):
+	def set_rgb(self, pos: float, red: float, green: float, blue: float) -> None:
 		"""
 		Set floating point rgb values at floating point position (interpolated automatically).
 		:param pos: floating point led position
@@ -240,7 +269,7 @@ class LedStrip:
 		"""
 		self._call_interpolated(self.set_pixel_rgb, pos, red, green, blue)
 
-	def add_rgb(self, pos: float, red: float, green: float, blue: float):
+	def add_rgb(self, pos: float, red: float, green: float, blue: float) -> None:
 		"""
 		Add floating point rgb values at floating point position (interpolated automatically).
 		:param pos: floating point led position
@@ -250,7 +279,7 @@ class LedStrip:
 		"""
 		self._call_interpolated(self.add_pixel_rgb, pos, red, green, blue)
 
-	def set_hsv(self, pos: float, hue: float, saturation: float, value: float):
+	def set_hsv(self, pos: float, hue: float, saturation: float, value: float) -> None:
 		"""
 		Set floating point hsv values at floating point position (interpolated automatically).
 		:param pos: floating point led position
@@ -261,7 +290,7 @@ class LedStrip:
 		rgb = colorsys.hsv_to_rgb(hue, saturation, value)
 		self.set_rgb(pos, rgb[0], rgb[1], rgb[2])
 
-	def add_hsv(self, pos: float, hue: float, saturation: float, value: float):
+	def add_hsv(self, pos: float, hue: float, saturation: float, value: float) -> None:
 		"""
 		Add floating point hsv values at floating point position (interpolated automatically).
 		:param pos: floating point led position
@@ -272,14 +301,14 @@ class LedStrip:
 		rgb = colorsys.hsv_to_rgb(hue, saturation, value)
 		self.add_rgb(pos, rgb[0], rgb[1], rgb[2])
 
-	def clear(self):
+	def clear(self) -> None:
 		"""
 		Set all pixels to black. Needs call to transmit() to take effect.
 		"""
 		for pos in range(0, self.led_count):
 			self.set_pixel_rgb(pos, 0, 0, 0)
 
-	def _update_buffers(self):
+	def _update_buffers(self) -> None:
 		"""
 		Clamp colors to range(0.0, 1.0), limit power use and convert colors to buffer.
 		"""
@@ -350,7 +379,13 @@ class LedStrip:
 		self.transmit(ip, port)
 
 	@staticmethod
-	def _call_interpolated(pixel_func, pos: float, red: float, green: float, blue: float):
+	def _call_interpolated(
+			pixel_func: Callable[[float, float, float, float], None],
+			pos: float,
+			red: float,
+			green: float,
+			blue: float
+	) -> None:
 		"""
 		Helper function distributing a color manipulation between two pixels based on interpolation.
 		:param pixel_func: function manipulating a single pixel
@@ -367,7 +402,7 @@ class LedStrip:
 		pixel_func(pos_ceil, red * ceil_factor, green * ceil_factor, blue * ceil_factor)
 
 	@staticmethod
-	def add_arguments(parser):
+	def add_arguments(parser: argparse.ArgumentParser) -> None:
 		group = parser.add_argument_group(title='pyledstrip')
 		group.add_argument('--config', type=str, help='configuration file')
 		group.add_argument('--led_count', type=int, nargs='+', help='amount of LEDs')
