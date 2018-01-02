@@ -16,6 +16,7 @@ __license__ = 'MPL-2.0'
 import colorsys
 import configparser
 import pprint
+import shlex
 import socket
 from typing import Union, Callable, List
 
@@ -183,13 +184,16 @@ class LedStrip:
 		section = config['pyledstrip']
 
 		if 'led_count' in section:
-			self.led_count = section.getint('led_count')
+			self.led_count = [int(p) for p in shlex.split(section.get('led_count'))]
 
 		if 'ip' in section:
-			self.ip = section.get('ip')
+			self.ip = shlex.split(section.get('ip'))
 
 		if 'port' in section:
-			self.port = section.getint('port')
+			self.port = [int(p) for p in shlex.split(section.get('port'))]
+
+		if 'flip' in section:
+			self.flip = [bool(f) for f in shlex.split(section.get('flip'))]
 
 		if 'power_limit' in section:
 			self.power_limit = section.getfloat('power_limit')
