@@ -2,9 +2,7 @@
 # coding: utf-8
 
 """
-This module wraps UDP streaming of color information
-to WS2812 LED strips connected to an ESP8266 running the
-firmware from https://github.com/cnlohr/esp8266ws2812i2s
+This module wraps streaming of color information to WS2812 LED strips
 """
 
 __all__ = ['LedStrip']
@@ -22,16 +20,44 @@ import socket
 from typing import Union, Callable, List
 
 
-class LedStrip:
-    """
-    Class managing led strip state information (e.g. connection information, color information before transmit)
-    """
+class Protocol:
+    pass
 
-    # Public constants
+
+# Protocol specified by ESP8266 I2S WS2812 Driver
+# https://github.com/cnlohr/esp8266ws2812i2s
+class ProtocolEsp(Protocol):
+    CONNECTION_TYPE = 'udp'
     DATA_OFFSET = 3
     RED_OFFSET = 1
     GREEN_OFFSET = 0
     BLUE_OFFSET = 2
+    LED_COUNT_HIGH_BYTE = None
+    LED_COUNT_LOW_BYTE = None
+
+
+# Protocol specified by Open Pixel Control
+# http://openpixelcontrol.org
+class ProtocolOpc(Protocol):
+    CONNECTION_TYPE = 'tcp'
+    DATA_OFFSET = 4
+    RED_OFFSET = 0
+    GREEN_OFFSET = 1
+    BLUE_OFFSET = 2
+    LED_COUNT_HIGH_BYTE = 2
+    LED_COUNT_LOW_BYTE = 3
+
+
+PROTOCOLS = {
+    'esp': ProtocolEsp,
+    'opc': ProtocolOpc,
+}
+
+
+class LedStrip:
+    """
+    Class managing led strip state information (e.g. connection information, color information before transmit)
+    """
 
     def _refresh_parameters(self) -> None:
         """
@@ -53,6 +79,13 @@ class LedStrip:
         else:
             self._ports = self._port
 
+        if isinstance(self._protocol, List):
+            self._protocols = self._protocol
+        else:
+            self._protocols = [self._protocol]
+
+        self._protocols = [PROTOCOLS[p] if isinstance(p, str) else p for p in self._protocols]
+
         if isinstance(self._flip, bool):
             self._flips = [self._flip]
         else:
@@ -68,6 +101,9 @@ class LedStrip:
         if len(self._ports) < self._strip_count:
             self._ports = self._ports + [self._ports[0]] * (self._strip_count - len(self._ports))
 
+        if len(self._protocols) < self._strip_count:
+            self._protocols = self._protocols + [self._protocols[0]] * (self._strip_count - len(self._protocols))
+
         if len(self._led_counts) > self._strip_count:
             self._led_counts = self._led_counts[:self._strip_count]
         elif len(self._led_counts) < self._strip_count:
@@ -82,8 +118,10 @@ class LedStrip:
             self._total_led_count = sum(self._led_counts)
             self._pixels = [[0.0, 0.0, 0.0]] * self._total_led_count
 
-        self._transmit_buffers = [bytearray(c * 3 + self.DATA_OFFSET) for c in self._led_counts]
+        self._transmit_buffers = [bytearray(c * 3 + self._protocols[i].DATA_OFFSET) for i, c in
+                                  enumerate(self._led_counts)]
         self._transmit_buffers_dirty = True
+        self._socks = [None for _ in self._led_counts]
 
         self._strip_index = []
         self._strip_positions = []
@@ -120,7 +158,17 @@ class LedStrip:
     port = property(
         fget=lambda self: self._port,
         fset=_set_port,
-        doc='UDP port used when transmit is called'
+        doc='Port used when transmit is called'
+    )
+
+    def _set_protocol(self, protocol: Union[Protocol, List[Protocol]]) -> None:
+        self._protocol = protocol
+        self._refresh_parameters()
+
+    protocol = property(
+        fget=lambda self: self._protocol,
+        fset=_set_protocol,
+        doc='Protocol used when transmit is called'
     )
 
     def _set_flip(self, flip: Union[bool, List[bool]]) -> None:
@@ -152,6 +200,7 @@ class LedStrip:
             led_count: Union[int, List[int]] = None,
             ip: Union[str, List[str]] = None,
             port: Union[int, List[int]] = None,
+            protocol: Union[Protocol, List[Protocol]] = None,
             flip: Union[bool, List[bool]] = None,
             power_limit: float = None,
             loop: bool = None,
@@ -161,7 +210,8 @@ class LedStrip:
         :param config: configuration file
         :param led_count: amount of LEDs (used for power and loop calculation)
         :param ip: IP address used when transmit is called
-        :param port: UDP port used when transmit is called
+        :param port: Port used when transmit is called
+        :param protocol: Protocol used when transmit is called
         :param flip: Flip LED positions, use led_count - pos - 1 as position
         :param power_limit: limit power use running the LED strip on a small power source
         :param loop: loop positions modulo led_count
@@ -172,6 +222,7 @@ class LedStrip:
         self._led_count = 300
         self._ip = '192.168.4.1'
         self._port = 7777
+        self._protocol = ProtocolEsp
         self._flip = False
 
         # Instance variables
@@ -179,12 +230,13 @@ class LedStrip:
         self._power_limit = 0.2
 
         # Misc private variables
-        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._socks = None
         self._strip_count = None
         self._total_led_count = None
         self._led_counts = None
         self._ips = None
         self._ports = None
+        self._protocols = None
         self._flips = None
         self._pixels = None
         self._transmit_buffers = None
@@ -199,6 +251,7 @@ class LedStrip:
             led_count=led_count,
             ip=ip,
             port=port,
+            protocol=protocol,
             flip=flip,
             power_limit=power_limit,
             loop=loop,
@@ -212,6 +265,7 @@ class LedStrip:
             led_count: Union[int, List[int]] = None,
             ip: Union[str, List[str]] = None,
             port: Union[int, List[int]] = None,
+            protocol: Union[Protocol, List[Protocol]] = None,
             flip: Union[bool, List[bool]] = None,
             power_limit: float = None,
             loop: bool = False,
@@ -221,7 +275,8 @@ class LedStrip:
         :param config: configuration file
         :param led_count: amount of LEDs (used for power and loop calculation)
         :param ip: IP address used when transmit is called
-        :param port: UDP port used when transmit is called
+        :param port: Port used when transmit is called
+        :param protocol: Protocol used when transmit is called
         :param flip: Flip LED positions, use led_count - pos - 1 as position
         :param power_limit: used to limit power use when running the LED strip on a small power source
         :param loop: loop positions modulo led_count
@@ -244,6 +299,9 @@ class LedStrip:
 
         if port is not None:
             self.port = port
+
+        if protocol is not None:
+            self.protocol = protocol
 
         if flip is not None:
             self.flip = flip
@@ -279,6 +337,9 @@ class LedStrip:
         if 'port' in section:
             self.port = [int(p) for p in shlex.split(section.get('port'))]
 
+        if 'protocol' in section:
+            self.protocol = [PROTOCOLS[p] for p in shlex.split(section.get('protocol'))]
+
         if 'flip' in section:
             self.flip = [bool(f) for f in shlex.split(section.get('flip'))]
 
@@ -301,6 +362,9 @@ class LedStrip:
         if args.port is not None:
             self.port = args.port
 
+        if args.protocol is not None:
+            self.protocol = args.protocol
+
         if args.flip is not None:
             self.flip = args.flip
 
@@ -315,6 +379,7 @@ class LedStrip:
             'LED Count': self.led_count,
             'IP': self.ip,
             'Port': self.port,
+            'Protocol': self.protocol,
             'Flip': self.flip,
             'Power Limit': self.power_limit,
             'Loop': self.loop,
@@ -415,12 +480,19 @@ class LedStrip:
 
         # update transmit buffer
         for pos in range(self._total_led_count):
-            pos_offset = self._strip_positions[pos] * 3 + self.DATA_OFFSET
+            strip_index = self._strip_index[pos]
+            protocol = self._protocols[strip_index]
+            transmit_buffer = self._transmit_buffers[strip_index]
+
+            if protocol.LED_COUNT_HIGH_BYTE is not None and protocol.LED_COUNT_LOW_BYTE is not None:
+                transmit_buffer[protocol.LED_COUNT_HIGH_BYTE] = min(int(self._led_counts[strip_index] / 256), 255)
+                transmit_buffer[protocol.LED_COUNT_LOW_BYTE] = self._led_counts[strip_index] % 256
+
             pixel = pixels[pos]
-            transmit_buffer = self._transmit_buffers[self._strip_index[pos]]
-            transmit_buffer[pos_offset + self.RED_OFFSET] = max(0, min(int(pixel[0] * 255), 255))
-            transmit_buffer[pos_offset + self.GREEN_OFFSET] = max(0, min(int(pixel[1] * 255), 255))
-            transmit_buffer[pos_offset + self.BLUE_OFFSET] = max(0, min(int(pixel[2] * 255), 255))
+            pos_offset = self._strip_positions[pos] * 3 + protocol.DATA_OFFSET
+            transmit_buffer[pos_offset + protocol.RED_OFFSET] = max(0, min(int(pixel[0] * 255), 255))
+            transmit_buffer[pos_offset + protocol.GREEN_OFFSET] = max(0, min(int(pixel[1] * 255), 255))
+            transmit_buffer[pos_offset + protocol.BLUE_OFFSET] = max(0, min(int(pixel[2] * 255), 255))
 
         self._transmit_buffers_dirty = False
 
@@ -432,7 +504,24 @@ class LedStrip:
             self._update_buffers()
 
         for i in range(self._strip_count):
-            self._sock.sendto(self._transmit_buffers[i], (self._ips[i], self._ports[i]))
+            protocol = self._protocols[i]
+            if not self._socks[i]:
+                if protocol.CONNECTION_TYPE == 'udp':
+                    self._socks[i] = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                else:
+                    self._socks[i] = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    res = self._socks[i].connect_ex((self._ips[i], self._ports[i]))
+                    if res != 0:
+                        self._socks[i] = None
+                        continue
+
+            if protocol.CONNECTION_TYPE == 'udp':
+                self._socks[i].sendto(self._transmit_buffers[i], (self._ips[i], self._ports[i]))
+            else:
+                try:
+                    self._socks[i].send(self._transmit_buffers[i])
+                except InterruptedError:
+                    self._socks[i] = None
 
     def off(self) -> None:
         """
@@ -470,7 +559,8 @@ class LedStrip:
         group.add_argument('--config', type=str, help='configuration file')
         group.add_argument('--led_count', type=int, nargs='+', help='amount of LEDs')
         group.add_argument('--ip', type=str, nargs='+', help='IP address')
-        group.add_argument('--port', type=int, nargs='+', help='UDP port')
+        group.add_argument('--port', type=int, nargs='+', help='Port')
+        group.add_argument('--protocol', type=str, nargs='+', help='Protocol')
         group.add_argument('--flip', type=bool, nargs='+', help='flip led positions')
         group.add_argument('--power_limit', type=float, help='limit power use')
         group.add_argument('--loop', type=bool, help='loop positions modulo led_count')
