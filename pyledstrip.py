@@ -519,7 +519,7 @@ class LedStrip:
                 self._socks[i].sendto(self._transmit_buffers[i], (self._ips[i], self._ports[i]))
             else:
                 try:
-                    self._socks[i].send(self._transmit_buffers[i])
+                    self._socks[i].sendall(self._transmit_buffers[i])
                 except InterruptedError:
                     self._socks[i] = None
 
