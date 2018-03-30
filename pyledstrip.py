@@ -484,7 +484,7 @@ class LedStrip:
         np.clip(pixels, 0.0, 1.0)
 
         # limit power use
-        power_use = sum([sum(pixel) / 3 for pixel in pixels]) / self._total_led_count
+        power_use = np.sum(pixels / 3) / self._total_led_count
         if power_use > self._power_limit:
             brightness_factor = self._power_limit / power_use
             pixels *= brightness_factor
