@@ -14,6 +14,7 @@ __license__ = 'MPL-2.0'
 import argparse
 import colorsys
 import configparser
+import os.path
 import pprint
 import shlex
 import socket
@@ -282,11 +283,11 @@ class LedStrip:
         :param loop: loop positions modulo led_count
         :param args: argparse arguments
         """
+        configs = [config]
         if args is not None and args.config is not None:
-            self.read_config(args.config)
+            configs.append(args.config)
 
-        if config is not None:
-            self.read_config(config)
+        self.read_configs(configs)
 
         if args is not None:
             self.read_args(args)
@@ -312,15 +313,23 @@ class LedStrip:
         if loop is not None:
             self.loop = loop
 
-    def read_config(self, config: Union[str, configparser.ConfigParser]) -> None:
+    def read_configs(self, configs: List[Union[str, configparser.ConfigParser]]) -> None:
         """
-        :param config: configuration file
+        :param configs: configuration files
         """
-        if isinstance(config, str):
-            # Assume config file name was passed
-            config_file = config
-            config = configparser.ConfigParser()
-            config.read(config_file)
+        config = configparser.ConfigParser()
+        global_config_file = os.path.expanduser('~/.pyledstrip.ini')
+        if os.path.exists(global_config_file):
+            config.read(global_config_file)
+        for input_config in configs:
+            if isinstance(input_config, str):
+                # Assume config file name was passed
+                config_file = input_config
+                config.read(config_file)
+            elif input_config is not None:
+                # Any actual ConfigParser object overrides the current config
+                # completely.
+                config = input_config
 
         if 'pyledstrip' not in config:
             print('Section "pyledstrip" not found in config')
