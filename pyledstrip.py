@@ -489,15 +489,19 @@ class LedStrip:
             brightness_factor = self._power_limit / power_use
             pixels *= brightness_factor
 
-        # update transmit buffer
+        # calculate length of the buffer if the protocol requires it
+        for strip_index in range(self._strip_count):
+            protocol = self._protocols[strip_index]
+            if protocol.LED_COUNT_HIGH_BYTE is not None and protocol.LED_COUNT_LOW_BYTE is not None:
+                transmit_buffer = self._transmit_buffers[strip_index]
+                transmit_buffer[protocol.LED_COUNT_HIGH_BYTE] = min(int(self._led_counts[strip_index] / 256), 255)
+                transmit_buffer[protocol.LED_COUNT_LOW_BYTE] = self._led_counts[strip_index] % 256
+
+        # update data part of the transmit buffer
         for pos in range(self._total_led_count):
             strip_index = self._strip_index[pos]
             protocol = self._protocols[strip_index]
             transmit_buffer = self._transmit_buffers[strip_index]
-
-            if protocol.LED_COUNT_HIGH_BYTE is not None and protocol.LED_COUNT_LOW_BYTE is not None:
-                transmit_buffer[protocol.LED_COUNT_HIGH_BYTE] = min(int(self._led_counts[strip_index] / 256), 255)
-                transmit_buffer[protocol.LED_COUNT_LOW_BYTE] = self._led_counts[strip_index] % 256
 
             pixel = pixels[pos]
             pos_offset = self._strip_positions[pos] * 3 + protocol.DATA_OFFSET
