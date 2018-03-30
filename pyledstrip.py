@@ -481,7 +481,7 @@ class LedStrip:
 
         # clamp individual colors
         pixels = np.copy(self._pixels)
-        np.clip(pixels, 0.0, 1.0)
+        pixels = np.clip(pixels, 0.0, 1.0)
 
         # limit power use
         power_use = np.sum(pixels / 3) / self._total_led_count
@@ -507,7 +507,7 @@ class LedStrip:
             pixel = np.copy(pixels[pos])
             pixel *= 255
             pixel = pixel.astype(int)
-            np.clip(pixel, 0, 255)
+            pixel = np.clip(pixel, 0, 255)
 
             pos_offset = self._strip_positions[pos] * 3 + protocol.DATA_OFFSET
             transmit_buffer[pos_offset + protocol.RED_OFFSET] = pixel[0]
