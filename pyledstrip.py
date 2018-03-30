@@ -503,11 +503,16 @@ class LedStrip:
             protocol = self._protocols[strip_index]
             transmit_buffer = self._transmit_buffers[strip_index]
 
-            pixel = pixels[pos]
+            # scale the values to [0, 255]
+            pixel = np.copy(pixels[pos])
+            pixel *= 255
+            pixel = pixel.astype(int)
+            np.clip(pixel, 0, 255)
+
             pos_offset = self._strip_positions[pos] * 3 + protocol.DATA_OFFSET
-            transmit_buffer[pos_offset + protocol.RED_OFFSET] = max(0, min(int(pixel[0] * 255), 255))
-            transmit_buffer[pos_offset + protocol.GREEN_OFFSET] = max(0, min(int(pixel[1] * 255), 255))
-            transmit_buffer[pos_offset + protocol.BLUE_OFFSET] = max(0, min(int(pixel[2] * 255), 255))
+            transmit_buffer[pos_offset + protocol.RED_OFFSET] = pixel[0]
+            transmit_buffer[pos_offset + protocol.GREEN_OFFSET] = pixel[1]
+            transmit_buffer[pos_offset + protocol.BLUE_OFFSET] = pixel[2]
 
         self._transmit_buffers_dirty = False
 
