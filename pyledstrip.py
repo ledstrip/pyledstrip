@@ -20,6 +20,7 @@ import shlex
 import socket
 from typing import Union, Callable, List
 
+import numpy as np
 
 class Protocol:
     pass
@@ -117,7 +118,7 @@ class LedStrip:
 
         if self._total_led_count != sum(self._led_counts):
             self._total_led_count = sum(self._led_counts)
-            self._pixels = [[0.0, 0.0, 0.0]] * self._total_led_count
+            self._pixels = np.zeros((self._total_led_count, 3))
 
         self._transmit_buffers = [bytearray(c * 3 + self._protocols[i].DATA_OFFSET) for i, c in
                                   enumerate(self._led_counts)]
@@ -421,7 +422,7 @@ class LedStrip:
             pos %= self._total_led_count
 
         if 0 <= pos < self._total_led_count:
-            self._pixels[pos] = list(map(lambda a, b: a + b, self._pixels[pos], [red, green, blue]))
+            self._pixels[pos] += [red, green, blue]
             self._transmit_buffers_dirty = True
 
     def set_rgb(self, pos: float, red: float, green: float, blue: float) -> None:
@@ -479,13 +480,14 @@ class LedStrip:
         """
 
         # clamp individual colors
-        pixels = [list(map(lambda color: max(0.0, min(color, 1.0)), pixel)) for pixel in self._pixels]
+        pixels = np.copy(self._pixels)
+        np.clip(pixels, 0.0, 1.0)
 
         # limit power use
         power_use = sum([sum(pixel) / 3 for pixel in pixels]) / self._total_led_count
         if power_use > self._power_limit:
             brightness_factor = self._power_limit / power_use
-            pixels = [[color * brightness_factor for color in pixel] for pixel in pixels]
+            pixels *= brightness_factor
 
         # update transmit buffer
         for pos in range(self._total_led_count):
