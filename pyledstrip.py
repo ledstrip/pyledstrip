@@ -120,17 +120,10 @@ class LedStrip:
             self._total_led_count = sum(self._led_counts)
             self._pixels = np.zeros((self._total_led_count, 3))
 
-        self._transmit_buffers = [bytearray(c * 3 + self._protocols[i].DATA_OFFSET) for i, c in
-                                  enumerate(self._led_counts)]
+        self._transmit_buffers = [np.zeros(c * 3 + self._protocols[i].DATA_OFFSET,
+                                  dtype=np.uint8) for i, c in enumerate(self._led_counts)]
         self._transmit_buffers_dirty = True
         self._socks = [None for _ in self._led_counts]
-
-        self._strip_index = []
-        self._strip_positions = []
-
-        for i, c in enumerate(self._led_counts):
-            self._strip_index += [i] * c
-            self._strip_positions.extend(list(range(c)[::-1] if self._flips[i] else range(c)))
 
     # Public variables
     def _set_led_count(self, led_count: Union[int, List[int]]) -> None:
@@ -243,8 +236,6 @@ class LedStrip:
         self._pixels = None
         self._transmit_buffers = None
         self._transmit_buffers_dirty = True
-        self._strip_index = None
-        self._strip_positions = None
 
         self._refresh_parameters()
 
@@ -492,27 +483,42 @@ class LedStrip:
         # calculate length of the buffer if the protocol requires it
         for strip_index in range(self._strip_count):
             protocol = self._protocols[strip_index]
-            if protocol.LED_COUNT_HIGH_BYTE is not None and protocol.LED_COUNT_LOW_BYTE is not None:
+            if (protocol.LED_COUNT_HIGH_BYTE is not None
+                and protocol.LED_COUNT_LOW_BYTE is not None):
                 transmit_buffer = self._transmit_buffers[strip_index]
-                transmit_buffer[protocol.LED_COUNT_HIGH_BYTE] = min(int(self._led_counts[strip_index] / 256), 255)
-                transmit_buffer[protocol.LED_COUNT_LOW_BYTE] = self._led_counts[strip_index] % 256
+                transmit_buffer[protocol.LED_COUNT_HIGH_BYTE] = (
+                    min(int(self._led_counts[strip_index] / 256), 255))
+                transmit_buffer[protocol.LED_COUNT_LOW_BYTE] = (
+                    self._led_counts[strip_index] % 256)
+
+        # convert floating point pixels to bytes
+        pixels *= 255
+        pixels = pixels.astype(int)
 
         # update data part of the transmit buffer
-        for pos in range(self._total_led_count):
-            strip_index = self._strip_index[pos]
+        i = 0
+        for strip_index, led_count in enumerate(self._led_counts):
             protocol = self._protocols[strip_index]
             transmit_buffer = self._transmit_buffers[strip_index]
 
-            # scale the values to [0, 255]
-            pixel = np.copy(pixels[pos])
-            pixel *= 255
-            pixel = pixel.astype(int)
-            pixel = np.clip(pixel, 0, 255)
+            start = i
+            end = i + led_count
+            i += led_count
 
-            pos_offset = self._strip_positions[pos] * 3 + protocol.DATA_OFFSET
-            transmit_buffer[pos_offset + protocol.RED_OFFSET] = pixel[0]
-            transmit_buffer[pos_offset + protocol.GREEN_OFFSET] = pixel[1]
-            transmit_buffer[pos_offset + protocol.BLUE_OFFSET] = pixel[2]
+            strip_pixels = pixels[start:end]
+            if self._flips[strip_index]:
+                strip_pixels = np.flip(strip_pixels, 0)
+
+            red = strip_pixels[:,0]
+            green = strip_pixels[:,1]
+            blue = strip_pixels[:,2]
+
+            # write to buffer in strides per color
+            data = transmit_buffer[protocol.DATA_OFFSET:]
+            data = data.reshape((len(data) // 3, 3))
+            data[:,protocol.RED_OFFSET] = red
+            data[:,protocol.GREEN_OFFSET] = green
+            data[:,protocol.BLUE_OFFSET] = blue
 
         self._transmit_buffers_dirty = False
 
