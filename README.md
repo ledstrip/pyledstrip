@@ -1,4 +1,7 @@
 # pyledstrip
+
+[![Build Status](https://travis-ci.org/ledstrip/pyledstrip.svg?branch=master)](https://travis-ci.org/ledstrip/pyledstrip)
+
 Python interface for streaming color information to a WS2812 LED strip connected to an ESP8266 running the firmware from
 https://github.com/cnlohr/esp8266ws2812i2s
 
