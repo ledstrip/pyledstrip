@@ -546,7 +546,7 @@ class LedStrip:
             else:
                 try:
                     self._socks[i].sendall(self._transmit_buffers[i])
-                except ConnectionResetError:
+                except (ConnectionResetError, BrokenPipeError):
                     self._socks[i] = None
 
     def off(self) -> None:
