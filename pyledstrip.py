@@ -188,6 +188,30 @@ class LedStrip:
         doc='Limit total power used by LED strip'
     )
 
+    def _set_brightness_limit(self, brightness_limit: float) -> None:
+        assert brightness_limit >= 0.0
+        assert brightness_limit <= 1.0
+        self._brightness_limit = brightness_limit
+        self._transmit_buffers_dirty = True
+
+    brightness_limit = property(
+        fget=lambda self: self._brightness_limit,
+        fset=_set_brightness_limit,
+        doc='Limit maximum LED brightness'
+    )
+
+    def _set_brightness_factor(self, brightness_factor: float) -> None:
+        assert brightness_factor >= 0.0
+        assert brightness_factor <= 1.0
+        self._brightness_factor = brightness_factor
+        self._transmit_buffers_dirty = True
+
+    brightness_factor = property(
+        fget=lambda self: self._brightness_factor,
+        fset=_set_brightness_factor,
+        doc='Factor on LED brightness'
+    )
+
     def __init__(
             self,
             *,
@@ -198,6 +222,8 @@ class LedStrip:
             protocol: Union[Protocol, List[Protocol]] = None,
             flip: Union[bool, List[bool]] = None,
             power_limit: float = None,
+            brightness_limit: float = None,
+            brightness_factor: float = None,
             loop: bool = None,
             args=None
     ):
@@ -209,6 +235,8 @@ class LedStrip:
         :param protocol: Protocol used when transmit is called
         :param flip: Flip LED positions, use led_count - pos - 1 as position
         :param power_limit: limit power use running the LED strip on a small power source
+        :param brightness_limit: limit LED strip brightness
+        :param brightness_factor: factor for LED strip brightness
         :param loop: loop positions modulo led_count
         :param args: argparse arguments
         """
@@ -223,6 +251,8 @@ class LedStrip:
         # Instance variables
         self.loop = False
         self._power_limit = 0.2
+        self._brightness_limit = 1.0
+        self._brightness_factor = 1.0
 
         # Misc private variables
         self._socks = None
@@ -247,6 +277,8 @@ class LedStrip:
             protocol=protocol,
             flip=flip,
             power_limit=power_limit,
+            brightness_limit=brightness_limit,
+            brightness_factor=brightness_factor,
             loop=loop,
             args=args
         )
@@ -261,6 +293,8 @@ class LedStrip:
             protocol: Union[Protocol, List[Protocol]] = None,
             flip: Union[bool, List[bool]] = None,
             power_limit: float = None,
+            brightness_limit: float = None,
+            brightness_factor: float = None,
             loop: bool = False,
             args=None
     ) -> None:
@@ -272,6 +306,8 @@ class LedStrip:
         :param protocol: Protocol used when transmit is called
         :param flip: Flip LED positions, use led_count - pos - 1 as position
         :param power_limit: used to limit power use when running the LED strip on a small power source
+        :param brightness_limit: used to limit LED strip brightness
+        :param brightness_factor: factor for LED strip brightness
         :param loop: loop positions modulo led_count
         :param args: argparse arguments
         """
@@ -301,6 +337,12 @@ class LedStrip:
 
         if power_limit is not None:
             self.power_limit = power_limit
+
+        if brightness_limit is not None:
+            self.brightness_limit = brightness_limit
+
+        if brightness_factor is not None:
+            self.brightness_factor = brightness_factor
 
         if loop is not None:
             self.loop = loop
@@ -347,6 +389,12 @@ class LedStrip:
         if 'power_limit' in section:
             self.power_limit = section.getfloat('power_limit')
 
+        if 'brightness_limit' in section:
+            self.brightness_limit = section.getfloat('brightness_limit')
+
+        if 'brightness_factor' in section:
+            self.brightness_factor = section.getfloat('brightness_factor')
+
         if 'loop' in section:
             self.loop = section.getboolean('loop')
 
@@ -372,6 +420,12 @@ class LedStrip:
         if args.power_limit is not None:
             self.power_limit = args.power_limit
 
+        if args.brightness_limit is not None:
+            self.brightness_limit = args.brightness_limit
+
+        if args.brightness_factor is not None:
+            self.brightness_factor = args.brightness_factor
+
         if args.loop is not None:
             self.loop = args.loop
 
@@ -383,6 +437,8 @@ class LedStrip:
             'Protocol': self.protocol,
             'Flip': self.flip,
             'Power Limit': self.power_limit,
+            'Brightness Limit': self.brightness_limit,
+            'Brightness Factor': self.brightness_factor,
             'Loop': self.loop,
         })
 
@@ -444,7 +500,11 @@ class LedStrip:
         :param saturation: saturation value in range(0.0, 1.0)
         :param value: brightness value in range(0.0, 1.0)
         """
-        rgb = colorsys.hsv_to_rgb(hue, saturation, value)
+        rgb = colorsys.hsv_to_rgb(
+            max(0.0, min(hue, 1.0)),
+            max(0.0, min(saturation, 1.0)),
+            max(0.0, min(value, 1.0))
+        )
         self.set_rgb(pos, rgb[0], rgb[1], rgb[2])
 
     def add_hsv(self, pos: float, hue: float, saturation: float, value: float) -> None:
@@ -455,14 +515,28 @@ class LedStrip:
         :param saturation: saturation value in range(0.0, 1.0)
         :param value: brightness value in range(0.0, 1.0)
         """
-        rgb = colorsys.hsv_to_rgb(hue, saturation, value)
+        rgb = colorsys.hsv_to_rgb(
+            max(0.0, min(hue, 1.0)),
+            max(0.0, min(saturation, 1.0)),
+            max(0.0, min(value, 1.0))
+        )
         self.add_rgb(pos, rgb[0], rgb[1], rgb[2])
+
+    def set_pixels_rgb(self, pixels: np.ndarray) -> None:
+        if not isinstance(pixels, np.ndarray):
+            raise TypeError('Parameter pixels must be of type numpy array')
+
+        if len(pixels) != self._total_led_count:
+            raise ValueError('LED count mismatch')
+
+        self._pixels = pixels
+        self._transmit_buffers_dirty = True
 
     def clear(self) -> None:
         """
         Set all pixels to black. Needs call to transmit() to take effect.
         """
-        for pos in range(0, self._total_led_count):
+        for pos in range(self._total_led_count):
             self.set_pixel_rgb(pos, 0, 0, 0)
 
     def _update_buffers(self) -> None:
@@ -472,7 +546,8 @@ class LedStrip:
 
         # clamp individual colors
         pixels = np.copy(self._pixels)
-        pixels = np.clip(pixels, 0.0, 1.0)
+        pixels *= self._brightness_factor
+        pixels = np.clip(pixels, 0.0, self._brightness_limit)
 
         # limit power use
         power_use = np.sum(pixels / 3) / self._total_led_count
@@ -509,16 +584,16 @@ class LedStrip:
             if self._flips[strip_index]:
                 strip_pixels = np.flip(strip_pixels, 0)
 
-            red = strip_pixels[:,0]
-            green = strip_pixels[:,1]
-            blue = strip_pixels[:,2]
+            red = strip_pixels[:, 0]
+            green = strip_pixels[:, 1]
+            blue = strip_pixels[:, 2]
 
             # write to buffer in strides per color
             data = transmit_buffer[protocol.DATA_OFFSET:]
             data = data.reshape((len(data) // 3, 3))
-            data[:,protocol.RED_OFFSET] = red
-            data[:,protocol.GREEN_OFFSET] = green
-            data[:,protocol.BLUE_OFFSET] = blue
+            data[:, protocol.RED_OFFSET] = red
+            data[:, protocol.GREEN_OFFSET] = green
+            data[:, protocol.BLUE_OFFSET] = blue
 
         self._transmit_buffers_dirty = False
 
@@ -558,7 +633,7 @@ class LedStrip:
 
     @staticmethod
     def _call_interpolated(
-            pixel_func: Callable[[float, float, float, float], None],
+            pixel_func: Callable[[int, float, float, float], None],
             pos: float,
             red: float,
             green: float,
@@ -572,8 +647,12 @@ class LedStrip:
         :param green: green value in range(0.0, 1.0)
         :param blue: blue value in range(0.0, 1.0)
         """
-        pos_floor = int(pos)
-        pos_ceil = int(pos + 1.0)
+        if pos >= 0:
+            pos_floor = int(pos)
+            pos_ceil = int(pos + 1.0)
+        else:
+            pos_floor = int(pos - 1.0)
+            pos_ceil = int(pos)
         floor_factor = 1.0 - (pos - pos_floor)
         ceil_factor = 1.0 - (pos_ceil - pos)
         pixel_func(pos_floor, red * floor_factor, green * floor_factor, blue * floor_factor)
@@ -589,4 +668,6 @@ class LedStrip:
         group.add_argument('--protocol', type=str, nargs='+', help='Protocol')
         group.add_argument('--flip', type=bool, nargs='+', help='flip led positions')
         group.add_argument('--power_limit', type=float, help='limit power use')
+        group.add_argument('--brightness_limit', type=float, help='limit brightness use')
+        group.add_argument('--brightness_factor', type=float, help='brightness factor')
         group.add_argument('--loop', type=bool, help='loop positions modulo led_count')
